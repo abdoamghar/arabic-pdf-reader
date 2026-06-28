@@ -304,10 +304,14 @@ rateSlider.addEventListener('input', (e) => {
 
 // TTS Controls
 let cloudAudioQueue = [];
-let currentCloudAudio = null;
+let cloudChunks = [];
+let currentCloudAudio = new Audio();
 let isCloudSpeaking = false;
 
 function speak() {
+    // Unlock audio element for iOS/Mobile on first user interaction
+    currentCloudAudio.play().catch(e => {});
+    
     const textToSpeak = textPreview.value.trim();
     if (textToSpeak === '') return;
 
@@ -458,7 +462,7 @@ function playNextCloudChunk() {
         readerModeContent.innerHTML = escapeHTML(before) + '<span class="highlight">' + escapeHTML(chunkStr) + '</span>' + escapeHTML(after);
     }
     
-    currentCloudAudio = new Audio(url);
+    currentCloudAudio.src = url;
     currentCloudAudio.playbackRate = parseFloat(rateSlider.value);
     
     currentCloudAudio.onended = () => {
@@ -503,7 +507,7 @@ function stopSpeaking() {
         isCloudSpeaking = false;
         if (currentCloudAudio) {
             currentCloudAudio.pause();
-            currentCloudAudio = null;
+            currentCloudAudio.src = "";
         }
         cloudAudioQueue = [];
         btnPlay.disabled = false;

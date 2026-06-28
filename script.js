@@ -309,9 +309,6 @@ let currentCloudAudio = new Audio();
 let isCloudSpeaking = false;
 
 function speak() {
-    // Unlock audio element for iOS/Mobile on first user interaction
-    currentCloudAudio.play().catch(e => {});
-    
     const textToSpeak = textPreview.value.trim();
     if (textToSpeak === '') return;
 
@@ -414,7 +411,7 @@ function playCloudTTS(text) {
             currentStartIndex = wordIndex;
         }
         
-        if (currentChunkText.length + word.length < 150) {
+        if (currentChunkText.length + word.length < 100) {
             currentChunkText += word + " ";
             lastEndIndex = wordIndex + word.length;
         } else {

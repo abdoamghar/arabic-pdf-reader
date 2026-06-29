@@ -464,81 +464,116 @@ let cloudAudioQueue = [];
 let cloudChunks = [];
 let currentCloudAudio = new Audio();
 let isCloudSpeaking = false;
+let ttsKeepAliveId = null;
+
+// Chrome bug workaround: periodic pause/resume prevents silent ~15s freeze
+function startTTSKeepAlive() {
+    stopTTSKeepAlive();
+    ttsKeepAliveId = setInterval(() => {
+        if (!synth.speaking) {
+            stopTTSKeepAlive();
+        } else {
+            synth.pause();
+            synth.resume();
+        }
+    }, 10000);
+}
+
+function stopTTSKeepAlive() {
+    if (ttsKeepAliveId) {
+        clearInterval(ttsKeepAliveId);
+        ttsKeepAliveId = null;
+    }
+}
 
 function speak() {
     const textToSpeak = textPreview.value.trim();
     if (textToSpeak === '') return;
 
-    const selectedOptionDataName = voiceSelect.selectedOptions.length > 0 ? voiceSelect.selectedOptions[0].getAttribute('data-name') : '';
+    const selectedOption = voiceSelect.selectedOptions[0];
+    const selectedOptionDataName = selectedOption ? selectedOption.getAttribute('data-name') : '';
 
     if (selectedOptionDataName === 'cloud-google') {
         playCloudTTS(textToSpeak);
         return;
     }
 
-    // Default Web Speech API
-    if (synth.speaking) {
-        synth.cancel();
+    // If paused, just resume
+    if (synth.paused) {
+        synth.resume();
+        btnPlay.disabled = true;
+        btnPause.disabled = false;
+        startTTSKeepAlive();
+        return;
     }
 
-    setTimeout(() => {
-        if (synth.paused) return;
+    // Chrome bug: if synth.speaking is stuck true after previous utterance,
+    // cancel + pause/resume to reset the engine, then retry after a delay
+    if (synth.speaking) {
+        synth.cancel();
+        synth.pause();
+        synth.resume();
+        setTimeout(speak, 300);
+        return;
+    }
 
-        const utterThis = new SpeechSynthesisUtterance(textToSpeak);
+    const utterThis = new SpeechSynthesisUtterance(textToSpeak);
 
-        if (voiceSelect.selectedOptions.length > 0) {
-            const allVoices = synth.getVoices();
-            for (let i = 0; i < allVoices.length; i++) {
-                if (allVoices[i].name === selectedOptionDataName) {
-                    utterThis.voice = allVoices[i];
-                    break;
-                }
+    if (selectedOption && selectedOptionDataName) {
+        const allVoices = synth.getVoices();
+        for (const v of allVoices) {
+            if (v.name === selectedOptionDataName) {
+                utterThis.voice = v;
+                break;
             }
         }
+    }
 
-        utterThis.rate = parseFloat(rateSlider.value);
+    utterThis.rate = parseFloat(rateSlider.value);
 
-        utterThis.onstart = () => {
-            btnPlay.disabled = true;
-            btnPause.disabled = false;
-            btnStop.disabled = false;
-        };
+    utterThis.onstart = () => {
+        btnPlay.disabled = true;
+        btnPause.disabled = false;
+        btnStop.disabled = false;
+        startTTSKeepAlive();
+    };
 
-        utterThis.onboundary = (e) => {
-            if (e.name === 'word') {
-                const before = textToSpeak.substring(0, e.charIndex);
-                let match = textToSpeak.substring(e.charIndex).match(/\s/);
-                let endOfWord = match ? e.charIndex + match.index : textToSpeak.length;
-                const word = textToSpeak.substring(e.charIndex, endOfWord);
-                const after = textToSpeak.substring(endOfWord);
-                readerModeContent.innerHTML = escapeHTML(before) + '<span class="highlight">' + escapeHTML(word) + '</span>' + escapeHTML(after);
-            }
-        };
+    utterThis.onboundary = (e) => {
+        if (e.name !== 'word') return;
+        const idx = e.charIndex;
+        const before = textToSpeak.substring(0, idx);
+        const rest = textToSpeak.substring(idx);
+        const match = rest.match(/\s/);
+        const end = match ? idx + match.index : textToSpeak.length;
+        const word = textToSpeak.substring(idx, end);
+        const after = textToSpeak.substring(end);
+        readerModeContent.innerHTML = escapeHTML(before) + '<span class="highlight">' + escapeHTML(word) + '</span>' + escapeHTML(after);
+    };
 
-        utterThis.onend = () => {
-            synth.cancel();
-            btnPlay.disabled = false;
-            btnPause.disabled = true;
-            btnStop.disabled = true;
-            readerModeContent.textContent = textPreview.value;
+    utterThis.onend = () => {
+        stopTTSKeepAlive();
+        btnPlay.disabled = false;
+        btnPause.disabled = true;
+        btnStop.disabled = true;
+        readerModeContent.textContent = textPreview.value;
 
-            if (autoReadToggle.checked && pdfDoc && pageNum < pdfDoc.numPages) {
-                autoReadPending = true;
-                pageNum++;
-                queueRenderPage(pageNum);
-            }
-        };
+        if (autoReadToggle.checked && pdfDoc && pageNum < pdfDoc.numPages) {
+            autoReadPending = true;
+            pageNum++;
+            queueRenderPage(pageNum);
+        }
+    };
 
-        utterThis.onerror = (e) => {
-            console.error('SpeechSynthesisUtterance.onerror', e);
-            btnPlay.disabled = false;
-            btnPause.disabled = true;
-            btnStop.disabled = true;
-            readerModeContent.textContent = textPreview.value;
-        };
+    utterThis.onerror = (e) => {
+        stopTTSKeepAlive();
+        console.error('SpeechSynthesisUtterance.onerror', e);
+        btnPlay.disabled = false;
+        btnPause.disabled = true;
+        btnStop.disabled = true;
+        readerModeContent.textContent = textPreview.value;
+    };
 
-        synth.speak(utterThis);
-    }, 100);
+    synth.speak(utterThis);
 }
 
 function playCloudTTS(text) {
@@ -704,6 +739,8 @@ function pauseSpeaking() {
         return;
     }
 
+    stopTTSKeepAlive();
+
     if (synth.speaking && !synth.paused) {
         synth.pause();
         btnPlay.disabled = false;
@@ -713,6 +750,7 @@ function pauseSpeaking() {
 
 function stopSpeaking() {
     autoReadPending = false;
+    stopTTSKeepAlive();
     const selectedOptionDataName = voiceSelect.selectedOptions.length > 0 ? voiceSelect.selectedOptions[0].getAttribute('data-name') : '';
 
     if (selectedOptionDataName === 'cloud-google') {

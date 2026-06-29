@@ -588,7 +588,6 @@ function playCloudTTS(text) {
 
     // Reset error counter for each new playback session
     cloudTTSErrorCount = 0;
-    currentCloudAudio = new Audio();
 
     let regex = /\S+/g;
     let match;
@@ -634,7 +633,6 @@ function playCloudTTS(text) {
 function playNextCloudChunk() {
     if (cloudAudioQueue.length === 0 || !isCloudSpeaking) {
         isCloudSpeaking = false;
-        currentCloudAudio = null;
         btnPlay.disabled = false;
         btnPause.disabled = true;
         btnStop.disabled = true;
@@ -682,7 +680,6 @@ function playNextCloudChunk() {
             isCloudSpeaking = false;
             cloudAudioQueue = [];
             cloudChunks = [];
-            currentCloudAudio = null;
             btnPlay.disabled = false;
             btnPause.disabled = true;
             btnStop.disabled = true;
@@ -711,7 +708,6 @@ function playNextCloudChunk() {
             isCloudSpeaking = false;
             cloudAudioQueue = [];
             cloudChunks = [];
-            currentCloudAudio = null;
             btnPlay.disabled = false;
             btnPause.disabled = true;
             btnStop.disabled = true;

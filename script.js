@@ -739,7 +739,6 @@ function stopSpeaking() {
         isCloudSpeaking = false;
         if (currentCloudAudio) {
             currentCloudAudio.pause();
-            currentCloudAudio.src = "";
         }
         cloudAudioQueue = [];
         btnPlay.disabled = false;

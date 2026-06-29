@@ -588,6 +588,7 @@ function playCloudTTS(text) {
 
     // Reset error counter for each new playback session
     cloudTTSErrorCount = 0;
+    currentCloudAudio = new Audio();
 
     let regex = /\S+/g;
     let match;
@@ -661,6 +662,7 @@ function playNextCloudChunk() {
         readerModeContent.innerHTML = escapeHTML(before) + '<span class="highlight">' + escapeHTML(chunkStr) + '</span>' + escapeHTML(after);
     }
     
+    if (!currentCloudAudio) currentCloudAudio = new Audio();
     currentCloudAudio.src = url;
     currentCloudAudio.playbackRate = parseFloat(rateSlider.value);
     

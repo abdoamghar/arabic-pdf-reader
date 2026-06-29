@@ -486,7 +486,7 @@ function stopTTSKeepAlive() {
     }
 }
 
-function speak(retryCount = 0) {
+function speak() {
     const textToSpeak = textPreview.value.trim();
     if (textToSpeak === '') return;
 
@@ -510,14 +510,10 @@ function speak(retryCount = 0) {
     // Chrome bug: if synth.speaking is stuck true after previous utterance,
     // cancel + pause/resume to reset the engine, then retry after a delay
     if (synth.speaking) {
-        if (retryCount >= 3) {
-            showToast('تعذر تشغيل الصوت. يرجى تحديث الصفحة والمحاولة مرة أخرى.');
-            return;
-        }
         synth.cancel();
         synth.pause();
         synth.resume();
-        setTimeout(() => speak(retryCount + 1), 300);
+        setTimeout(speak, 300);
         return;
     }
 

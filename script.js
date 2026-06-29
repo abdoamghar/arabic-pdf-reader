@@ -10,6 +10,9 @@ let scale = 1.5;
 let extractedText = "";
 let ocrWorker = null;
 let isOCRRunning = false;
+let ocrTargetPage = null;
+let ocrHideTimeout = null;
+let cloudTTSErrorCount = 0;
 
 function escapeHTML(str) {
     return str.replace(/[&<>'"]/g, 
@@ -197,14 +200,30 @@ async function runOCR() {
     if (isOCRRunning || !pdfDoc) return;
     
     isOCRRunning = true;
+    ocrTargetPage = pageNum;
     btnOCR.disabled = true;
+    
+    // Clear any pending hide timeout
+    if (ocrHideTimeout) {
+        clearTimeout(ocrHideTimeout);
+        ocrHideTimeout = null;
+    }
+    
     showOCRStatus('جاري التحضير...', 0);
     
     try {
         const worker = await initOCRWorker();
         
+        // Check if user navigated away during worker init
+        if (ocrTargetPage !== pageNum) {
+            isOCRRunning = false;
+            hideOCRStatus();
+            if (pdfDoc) btnOCR.disabled = false;
+            return;
+        }
+        
         // Use a higher-resolution canvas for better OCR accuracy
-        const page = await pdfDoc.getPage(pageNum);
+        const page = await pdfDoc.getPage(ocrTargetPage);
         const ocrScale = 3;
         const viewport = page.getViewport({ scale: ocrScale });
         
@@ -220,9 +239,25 @@ async function runOCR() {
             viewport: viewport
         }).promise;
         
+        // Check again after render
+        if (ocrTargetPage !== pageNum) {
+            isOCRRunning = false;
+            hideOCRStatus();
+            if (pdfDoc) btnOCR.disabled = false;
+            return;
+        }
+        
         showOCRStatus('جاري التعرف على النص...', 10);
         
         const { data: { text } } = await worker.recognize(ocrCanvas);
+        
+        // Discard stale results if user changed page during OCR
+        if (ocrTargetPage !== pageNum) {
+            isOCRRunning = false;
+            hideOCRStatus();
+            if (pdfDoc) btnOCR.disabled = false;
+            return;
+        }
         
         if (text && text.trim().length > 0) {
             extractedText = text;
@@ -232,15 +267,14 @@ async function runOCR() {
             showOCRStatus('لم يتم العثور على نص في هذه الصفحة', 100);
         }
         
-        // Hide status after a delay
-        setTimeout(() => {
+        ocrHideTimeout = setTimeout(() => {
             hideOCRStatus();
         }, 3000);
         
     } catch (err) {
         console.error('OCR Error:', err);
         showOCRStatus('خطأ في التعرف على النص', 0);
-        setTimeout(() => {
+        ocrHideTimeout = setTimeout(() => {
             hideOCRStatus();
         }, 3000);
     } finally {
@@ -355,6 +389,12 @@ fileInput.addEventListener('change', function(e) {
             alert('خطأ في تحميل ملف PDF');
             loadingSpinner.classList.add('hidden');
         });
+    };
+
+    fileReader.onerror = function() {
+        console.error('FileReader error:', fileReader.error);
+        showToast('خطأ في قراءة الملف. تأكد من أن الملف غير تالف وحاول مرة أخرى.');
+        loadingSpinner.classList.add('hidden');
     };
 
     fileReader.readAsArrayBuffer(file);
@@ -502,6 +542,9 @@ function playCloudTTS(text) {
 
     if (isCloudSpeaking) return;
 
+    // Reset error counter for each new playback session
+    cloudTTSErrorCount = 0;
+
     let regex = /\S+/g;
     let match;
     let currentChunkText = "";
@@ -571,19 +614,66 @@ function playNextCloudChunk() {
     currentCloudAudio.playbackRate = parseFloat(rateSlider.value);
     
     currentCloudAudio.onended = () => {
+        cloudTTSErrorCount = 0; // Reset on success
         if (isCloudSpeaking) {
             playNextCloudChunk();
         }
     };
     
     currentCloudAudio.onerror = () => {
-        console.error("Error playing cloud TTS");
+        cloudTTSErrorCount++;
+        console.error('Cloud TTS error (attempt ' + cloudTTSErrorCount + ')');
+        
+        if (cloudTTSErrorCount >= 2) {
+            // Cloud TTS is not working, stop and notify user
+            isCloudSpeaking = false;
+            cloudAudioQueue = [];
+            cloudChunks = [];
+            currentCloudAudio = null;
+            btnPlay.disabled = false;
+            btnPause.disabled = true;
+            btnStop.disabled = true;
+            readerModeContent.textContent = textPreview.value;
+            
+            // Auto-switch to a local voice if available
+            if (voiceSelect.options.length > 1) {
+                voiceSelect.selectedIndex = 1;
+                showToast('صوت السحابة غير متاح. تم التبديل إلى صوت محلي — اضغط "قراءة" مرة أخرى.');
+            } else {
+                showToast('صوت السحابة غير متاح. لا توجد أصوات محلية بديلة.');
+            }
+            return;
+        }
+        
+        // First error: skip this chunk and try next
         if (isCloudSpeaking) {
-            playNextCloudChunk(); // skip chunk on error
+            playNextCloudChunk();
         }
     };
     
-    currentCloudAudio.play();
+    currentCloudAudio.play().catch(() => {
+        // play() promise rejection (e.g. autoplay policy)
+        cloudTTSErrorCount++;
+        if (cloudTTSErrorCount >= 2) {
+            isCloudSpeaking = false;
+            cloudAudioQueue = [];
+            cloudChunks = [];
+            currentCloudAudio = null;
+            btnPlay.disabled = false;
+            btnPause.disabled = true;
+            btnStop.disabled = true;
+            readerModeContent.textContent = textPreview.value;
+            
+            if (voiceSelect.options.length > 1) {
+                voiceSelect.selectedIndex = 1;
+                showToast('صوت السحابة غير متاح. تم التبديل إلى صوت محلي — اضغط "قراءة" مرة أخرى.');
+            } else {
+                showToast('صوت السحابة غير متاح. لا توجد أصوات محلية بديلة.');
+            }
+        } else if (isCloudSpeaking) {
+            playNextCloudChunk();
+        }
+    });
 }
 
 function pauseSpeaking() {
@@ -634,3 +724,24 @@ function stopSpeaking() {
 btnPlay.addEventListener('click', speak);
 btnPause.addEventListener('click', pauseSpeaking);
 btnStop.addEventListener('click', stopSpeaking);
+
+// Toast notification system
+const toastEl = document.getElementById('toast-notification');
+const toastMessage = document.getElementById('toast-message');
+let toastTimeout = null;
+
+function showToast(message) {
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastMessage.textContent = message;
+    toastEl.classList.remove('hidden');
+    toastEl.classList.add('toast-show');
+    
+    toastTimeout = setTimeout(() => {
+        toastEl.classList.remove('toast-show');
+        toastEl.classList.add('toast-hide');
+        setTimeout(() => {
+            toastEl.classList.add('hidden');
+            toastEl.classList.remove('toast-hide');
+        }, 400);
+    }, 5000);
+}

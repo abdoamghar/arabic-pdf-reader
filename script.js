@@ -675,8 +675,7 @@ function playNextCloudChunk() {
         cloudTTSErrorCount++;
         console.error('Cloud TTS error (attempt ' + cloudTTSErrorCount + ')');
         
-        if (cloudTTSErrorCount >= 2) {
-            // Cloud TTS is not working, stop and notify user
+        if (cloudTTSErrorCount >= 3) {
             isCloudSpeaking = false;
             cloudAudioQueue = [];
             cloudChunks = [];
@@ -684,27 +683,18 @@ function playNextCloudChunk() {
             btnPause.disabled = true;
             btnStop.disabled = true;
             readerModeContent.textContent = textPreview.value;
-            
-            // Auto-switch to a local voice if available
-            if (voiceSelect.options.length > 1) {
-                voiceSelect.selectedIndex = 1;
-                showToast('صوت السحابة غير متاح. تم التبديل إلى صوت محلي — اضغط "قراءة" مرة أخرى.');
-            } else {
-                showToast('صوت السحابة غير متاح. لا توجد أصوات محلية بديلة.');
-            }
+            showToast('تعذر الاتصال بخدمة الصوت السحابية. اضغط "قراءة" للمحاولة مرة أخرى.');
             return;
         }
         
-        // First error: skip this chunk and try next
         if (isCloudSpeaking) {
             playNextCloudChunk();
         }
     };
     
     currentCloudAudio.play().catch(() => {
-        // play() promise rejection (e.g. autoplay policy)
         cloudTTSErrorCount++;
-        if (cloudTTSErrorCount >= 2) {
+        if (cloudTTSErrorCount >= 3) {
             isCloudSpeaking = false;
             cloudAudioQueue = [];
             cloudChunks = [];
@@ -712,13 +702,7 @@ function playNextCloudChunk() {
             btnPause.disabled = true;
             btnStop.disabled = true;
             readerModeContent.textContent = textPreview.value;
-            
-            if (voiceSelect.options.length > 1) {
-                voiceSelect.selectedIndex = 1;
-                showToast('صوت السحابة غير متاح. تم التبديل إلى صوت محلي — اضغط "قراءة" مرة أخرى.');
-            } else {
-                showToast('صوت السحابة غير متاح. لا توجد أصوات محلية بديلة.');
-            }
+            showToast('تعذر الاتصال بخدمة الصوت السحابية. اضغط "قراءة" للمحاولة مرة أخرى.');
         } else if (isCloudSpeaking) {
             playNextCloudChunk();
         }

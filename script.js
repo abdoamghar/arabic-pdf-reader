@@ -8,6 +8,8 @@ let pageRendering = false;
 let pageNumPending = null;
 let scale = 1.5;
 let extractedText = "";
+let ocrWorker = null;
+let isOCRRunning = false;
 
 function escapeHTML(str) {
     return str.replace(/[&<>'"]/g, 
@@ -36,9 +38,14 @@ const btnNext = document.getElementById('btn-next');
 const btnZoomIn = document.getElementById('btn-zoom-in');
 const btnZoomOut = document.getElementById('btn-zoom-out');
 const btnReaderMode = document.getElementById('btn-reader-mode');
+const btnOCR = document.getElementById('btn-ocr');
 const canvasContainer = document.getElementById('canvas-container');
 const readerModeContainer = document.getElementById('reader-mode-container');
 const readerModeContent = document.getElementById('reader-mode-content');
+const ocrStatusEl = document.getElementById('ocr-status');
+const ocrStatusText = document.getElementById('ocr-status-text');
+const ocrProgressFill = document.getElementById('ocr-progress-fill');
+const ocrProgressPercent = document.getElementById('ocr-progress-percent');
 let isReaderMode = false;
 
 const btnPlay = document.getElementById('btn-play');
@@ -156,7 +163,103 @@ function extractText(page) {
         
         extractedText = finalString;
         updateTextPreview();
+        
+        // Auto-detect scanned page: if extracted text is very short, run OCR
+        const trimmedText = finalString.replace(/\s+/g, '');
+        if (trimmedText.length < 10) {
+            runOCR();
+        }
     });
+}
+
+// OCR Functions
+async function initOCRWorker() {
+    if (ocrWorker) return ocrWorker;
+    
+    showOCRStatus('جاري تحميل محرك OCR...', 0);
+    
+    ocrWorker = await Tesseract.createWorker('ara', 1, {
+        logger: m => {
+            if (m.status === 'recognizing text') {
+                const pct = Math.round(m.progress * 100);
+                showOCRStatus('جاري التعرف على النص...', pct);
+            } else if (m.status === 'loading language traineddata') {
+                const pct = Math.round(m.progress * 100);
+                showOCRStatus('جاري تحميل بيانات اللغة العربية...', pct);
+            }
+        }
+    });
+    
+    return ocrWorker;
+}
+
+async function runOCR() {
+    if (isOCRRunning || !pdfDoc) return;
+    
+    isOCRRunning = true;
+    btnOCR.disabled = true;
+    showOCRStatus('جاري التحضير...', 0);
+    
+    try {
+        const worker = await initOCRWorker();
+        
+        // Use a higher-resolution canvas for better OCR accuracy
+        const page = await pdfDoc.getPage(pageNum);
+        const ocrScale = 3;
+        const viewport = page.getViewport({ scale: ocrScale });
+        
+        const ocrCanvas = document.createElement('canvas');
+        ocrCanvas.width = viewport.width;
+        ocrCanvas.height = viewport.height;
+        const ocrCtx = ocrCanvas.getContext('2d');
+        
+        showOCRStatus('جاري تجهيز الصفحة...', 5);
+        
+        await page.render({
+            canvasContext: ocrCtx,
+            viewport: viewport
+        }).promise;
+        
+        showOCRStatus('جاري التعرف على النص...', 10);
+        
+        const { data: { text } } = await worker.recognize(ocrCanvas);
+        
+        if (text && text.trim().length > 0) {
+            extractedText = text;
+            updateTextPreview();
+            showOCRStatus('تم التعرف على النص بنجاح ✓', 100);
+        } else {
+            showOCRStatus('لم يتم العثور على نص في هذه الصفحة', 100);
+        }
+        
+        // Hide status after a delay
+        setTimeout(() => {
+            hideOCRStatus();
+        }, 3000);
+        
+    } catch (err) {
+        console.error('OCR Error:', err);
+        showOCRStatus('خطأ في التعرف على النص', 0);
+        setTimeout(() => {
+            hideOCRStatus();
+        }, 3000);
+    } finally {
+        isOCRRunning = false;
+        if (pdfDoc) btnOCR.disabled = false;
+    }
+}
+
+function showOCRStatus(message, percent) {
+    ocrStatusEl.classList.remove('hidden');
+    ocrStatusText.textContent = message;
+    ocrProgressFill.style.width = percent + '%';
+    ocrProgressPercent.textContent = percent + '%';
+}
+
+function hideOCRStatus() {
+    ocrStatusEl.classList.add('hidden');
+    ocrProgressFill.style.width = '0%';
+    ocrProgressPercent.textContent = '0%';
 }
 
 // Update the textarea preview and handle the reverse toggle logic
@@ -237,6 +340,7 @@ fileInput.addEventListener('change', function(e) {
             btnZoomIn.disabled = false;
             btnZoomOut.disabled = false;
             btnReaderMode.disabled = false;
+            btnOCR.disabled = false;
             
             const savedPage = localStorage.getItem('pdf-page-' + file.name);
             if (savedPage && parseInt(savedPage) > 0 && parseInt(savedPage) <= pdfDoc.numPages) {
@@ -293,6 +397,10 @@ reverseToggle.addEventListener('change', () => {
 
 voiceSelect.addEventListener('change', () => {
     stopSpeaking();
+});
+
+btnOCR.addEventListener('click', () => {
+    runOCR();
 });
 
 rateSlider.addEventListener('input', (e) => {

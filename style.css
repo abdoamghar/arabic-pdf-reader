@@ -477,6 +477,88 @@ canvas {
     transition: all 0.2s ease-in-out;
 }
 
+/* OCR Status */
+.ocr-status {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 12px;
+    animation: ocrPulse 2s ease-in-out infinite;
+}
+
+@keyframes ocrPulse {
+    0%, 100% { border-color: rgba(139, 92, 246, 0.3); }
+    50% { border-color: rgba(139, 92, 246, 0.6); }
+}
+
+.ocr-status-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    color: #c4b5fd;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.ocr-status-header i {
+    font-size: 1.1rem;
+    animation: ocrScan 1.5s ease-in-out infinite;
+}
+
+@keyframes ocrScan {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.ocr-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.ocr-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #8b5cf6, #6366f1, #3b82f6);
+    background-size: 200% 100%;
+    border-radius: 10px;
+    transition: width 0.4s ease;
+    animation: ocrGradient 2s linear infinite;
+}
+
+@keyframes ocrGradient {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+}
+
+.ocr-progress-percent {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* OCR Button in Toolbar */
+.btn-ocr-trigger {
+    background: rgba(139, 92, 246, 0.15) !important;
+    border: 1px solid rgba(139, 92, 246, 0.35) !important;
+    color: #c4b5fd !important;
+    border-radius: 6px !important;
+    padding: 6px 12px !important;
+    font-size: 0.85rem !important;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.btn-ocr-trigger:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.3) !important;
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
     .app-container {

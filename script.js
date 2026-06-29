@@ -477,14 +477,9 @@ function speak() {
     }
 
     // Default Web Speech API
-    if (synth.speaking && !synth.paused) {
-        return;
-    }
+    synth.cancel();
     
     if (synth.paused) {
-        synth.resume();
-        btnPlay.disabled = true;
-        btnPause.disabled = false;
         return;
     }
 

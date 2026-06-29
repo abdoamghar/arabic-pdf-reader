@@ -58,6 +58,8 @@ const voiceSelect = document.getElementById('voice-select');
 const rateSlider = document.getElementById('rate-slider');
 const rateValueDisplay = document.getElementById('rate-value');
 const reverseToggle = document.getElementById('reverse-toggle');
+const autoReadToggle = document.getElementById('autoread-toggle');
+let autoReadPending = false;
 
 // Text-to-Speech Synth
 const synth = window.speechSynthesis;
@@ -310,8 +312,15 @@ function updateTextPreview() {
     
     if (textToDisplay.trim().length > 0) {
         btnPlay.disabled = false;
+        
+        // Auto-read: if pending, start speaking the new page
+        if (autoReadPending) {
+            autoReadPending = false;
+            setTimeout(() => speak(), 300);
+        }
     } else {
         btnPlay.disabled = true;
+        autoReadPending = false;
     }
 }
 
@@ -519,6 +528,13 @@ function speak() {
         btnPause.disabled = true;
         btnStop.disabled = true;
         readerModeContent.textContent = textPreview.value;
+        
+        // Auto-read next page
+        if (autoReadToggle.checked && pdfDoc && pageNum < pdfDoc.numPages) {
+            autoReadPending = true;
+            pageNum++;
+            queueRenderPage(pageNum);
+        }
     };
     
     utterThis.onerror = (e) => {
@@ -594,6 +610,13 @@ function playNextCloudChunk() {
         btnPause.disabled = true;
         btnStop.disabled = true;
         readerModeContent.textContent = textPreview.value;
+        
+        // Auto-read next page
+        if (autoReadToggle.checked && pdfDoc && pageNum < pdfDoc.numPages) {
+            autoReadPending = true;
+            pageNum++;
+            queueRenderPage(pageNum);
+        }
         return;
     }
     

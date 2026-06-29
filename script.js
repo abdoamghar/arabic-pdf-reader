@@ -312,15 +312,13 @@ function updateTextPreview() {
     
     if (textToDisplay.trim().length > 0) {
         btnPlay.disabled = false;
-        
-        // Auto-read: if pending, start speaking the new page
-        if (autoReadPending) {
-            autoReadPending = false;
-            setTimeout(() => speak(), 300);
-        }
     } else {
         btnPlay.disabled = true;
+    }
+    
+    if (autoReadPending && textToDisplay.trim().length > 0) {
         autoReadPending = false;
+        setTimeout(() => speak(), 300);
     }
 }
 
@@ -336,6 +334,7 @@ function onPrevPage() {
     if (pageNum <= 1) {
         return;
     }
+    autoReadPending = false;
     pageNum--;
     queueRenderPage(pageNum);
     stopSpeaking();
@@ -345,6 +344,7 @@ function onNextPage() {
     if (pageNum >= pdfDoc.numPages) {
         return;
     }
+    autoReadPending = false;
     pageNum++;
     queueRenderPage(pageNum);
     stopSpeaking();
@@ -719,6 +719,7 @@ function pauseSpeaking() {
 }
 
 function stopSpeaking() {
+    autoReadPending = false;
     const selectedOptionDataName = voiceSelect.selectedOptions.length > 0 ? voiceSelect.selectedOptions[0].getAttribute('data-name') : '';
 
     if (selectedOptionDataName === 'cloud-google') {

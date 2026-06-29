@@ -477,70 +477,68 @@ function speak() {
     }
 
     // Default Web Speech API
-    synth.cancel();
-    
-    if (synth.paused) {
-        return;
+    if (synth.speaking) {
+        synth.cancel();
     }
 
-    const utterThis = new SpeechSynthesisUtterance(textToSpeak);
-    
-    if (voiceSelect.selectedOptions.length > 0) {
-        const allVoices = synth.getVoices();
-        for (let i = 0; i < allVoices.length; i++) {
-            if (allVoices[i].name === selectedOptionDataName) {
-                utterThis.voice = allVoices[i];
-                break;
+    setTimeout(() => {
+        if (synth.paused) return;
+
+        const utterThis = new SpeechSynthesisUtterance(textToSpeak);
+
+        if (voiceSelect.selectedOptions.length > 0) {
+            const allVoices = synth.getVoices();
+            for (let i = 0; i < allVoices.length; i++) {
+                if (allVoices[i].name === selectedOptionDataName) {
+                    utterThis.voice = allVoices[i];
+                    break;
+                }
             }
         }
-    }
-    
-    utterThis.rate = parseFloat(rateSlider.value);
-    
-    utterThis.onstart = () => {
-        btnPlay.disabled = true;
-        btnPause.disabled = false;
-        btnStop.disabled = false;
-    };
-    
-    utterThis.onboundary = (e) => {
-        if (e.name === 'word') {
-            const before = textToSpeak.substring(0, e.charIndex);
-            
-            // find end of word (first whitespace)
-            let match = textToSpeak.substring(e.charIndex).match(/\s/);
-            let endOfWord = match ? e.charIndex + match.index : textToSpeak.length;
-            
-            const word = textToSpeak.substring(e.charIndex, endOfWord);
-            const after = textToSpeak.substring(endOfWord);
-            
-            readerModeContent.innerHTML = escapeHTML(before) + '<span class="highlight">' + escapeHTML(word) + '</span>' + escapeHTML(after);
-        }
-    };
-    
-    utterThis.onend = () => {
-        btnPlay.disabled = false;
-        btnPause.disabled = true;
-        btnStop.disabled = true;
-        readerModeContent.textContent = textPreview.value;
-        
-        // Auto-read next page
-        if (autoReadToggle.checked && pdfDoc && pageNum < pdfDoc.numPages) {
-            autoReadPending = true;
-            pageNum++;
-            queueRenderPage(pageNum);
-        }
-    };
-    
-    utterThis.onerror = (e) => {
-        console.error('SpeechSynthesisUtterance.onerror', e);
-        btnPlay.disabled = false;
-        btnPause.disabled = true;
-        btnStop.disabled = true;
-        readerModeContent.textContent = textPreview.value;
-    };
-    
-    synth.speak(utterThis);
+
+        utterThis.rate = parseFloat(rateSlider.value);
+
+        utterThis.onstart = () => {
+            btnPlay.disabled = true;
+            btnPause.disabled = false;
+            btnStop.disabled = false;
+        };
+
+        utterThis.onboundary = (e) => {
+            if (e.name === 'word') {
+                const before = textToSpeak.substring(0, e.charIndex);
+                let match = textToSpeak.substring(e.charIndex).match(/\s/);
+                let endOfWord = match ? e.charIndex + match.index : textToSpeak.length;
+                const word = textToSpeak.substring(e.charIndex, endOfWord);
+                const after = textToSpeak.substring(endOfWord);
+                readerModeContent.innerHTML = escapeHTML(before) + '<span class="highlight">' + escapeHTML(word) + '</span>' + escapeHTML(after);
+            }
+        };
+
+        utterThis.onend = () => {
+            synth.cancel();
+            btnPlay.disabled = false;
+            btnPause.disabled = true;
+            btnStop.disabled = true;
+            readerModeContent.textContent = textPreview.value;
+
+            if (autoReadToggle.checked && pdfDoc && pageNum < pdfDoc.numPages) {
+                autoReadPending = true;
+                pageNum++;
+                queueRenderPage(pageNum);
+            }
+        };
+
+        utterThis.onerror = (e) => {
+            console.error('SpeechSynthesisUtterance.onerror', e);
+            btnPlay.disabled = false;
+            btnPause.disabled = true;
+            btnStop.disabled = true;
+            readerModeContent.textContent = textPreview.value;
+        };
+
+        synth.speak(utterThis);
+    }, 100);
 }
 
 function playCloudTTS(text) {
